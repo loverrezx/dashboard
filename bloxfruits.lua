@@ -1,29 +1,37 @@
-local settings = getgenv()["loverr-ezx_Settings"]
-local game_id = settings and settings.game_id or 1 
-local base_url = settings and settings.BaseUrl or "http://localhost:8080/"
-local interval = settings and settings.Interval or 20
+-- [[ Blox Fruit Real-time Dashboard Script ]] --
+repeat task.wait() until game:IsLoaded()
 
-local player = game:GetService("Players").LocalPlayer
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
--- ฟังก์ชันดึงค่าแบบปลอดภัย (ป้องกันสคริปต์หลุดถ้าข้อมูลยังไม่โหลด)
-local function getVal(parent, path, default)
-    local current = parent
-    for _, part in pairs(path) do
-        if current and current:FindFirstChild(part) then
-            current = current[part]
-        else
-            return default
-        end
-    end
-    return (current and current:IsA("ValueBase")) and current.Value or default
+-- ตรวจสอบการตั้งค่า Config
+if not getgenv()["loverr-ezx_Settings"] then
+    warn("❌ ไม่พบการตั้งค่า Config! กรุณาคัดลอก Config จากหน้าเว็บมาวางก่อนสคริปต์นี้")
+    return
 end
 
+local settings = getgenv()["loverr-ezx_Settings"]
+local baseUrl = settings.BaseUrl or "http://localhost/Dashboard%20Loverr_ezx/"
+local updateUrl = baseUrl .. "services/update_stats.php"
+
+-- ฟังก์ชันดึงข้อมูลผลไม้ในกระเป๋า
 local function getFruits()
     local fruits = {}
-    local backpack = player:FindFirstChild("Backpack")
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
     if backpack then
-        for _, item in pairs(backpack:GetChildren()) do
-            if string.find(item.Name, "Fruit") or string.find(item.Name, "-") then
+        for _, item in ipairs(backpack:GetChildren()) do
+            -- ดึงชื่อที่มีคำว่า "Fruit" หรือมีเครื่องหมาย "-"
+            if item.Name:find("Fruit") or item.Name:find("-") then
+                table.insert(fruits, item.Name)
+            end
+        end
+    end
+    -- ดึงจากตัวที่ถืออยู่ด้วย (ถ้ามี)
+    local character = LocalPlayer.Character
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item:IsA("Tool") and (item.Name:find("Fruit") or item.Name:find("-")) then
                 table.insert(fruits, item.Name)
             end
         end
@@ -31,43 +39,62 @@ local function getFruits()
     return table.concat(fruits, ", ")
 end
 
-local function updateStats() 
-    local data = { 
-        game_id = game_id, 
-        pc_name = settings.PC or "Unknown", 
-        username = player.Name, 
-        cash = tostring(getVal(player, {"leaderstats", "Money"}, "0")),
-        level = getVal(player, {"Data", "Level"}, 0),
-        race = getVal(player, {"Data", "Race"}, "N/A"),
-        bounty = tostring(getVal(player, {"leaderstats", "Bounty/Honor"}, "0")),
-        m_melee = getVal(player, {"Data", "Stats", "Melee", "Level"}, 0),
-        m_defense = getVal(player, {"Data", "Stats", "Defense", "Level"}, 0),
-        m_sword = getVal(player, {"Data", "Stats", "Sword", "Level"}, 0),
-        m_gun = getVal(player, {"Data", "Stats", "Gun", "Level"}, 0),
-        m_fruit = getVal(player, {"Data", "Stats", "Demon Fruit", "Level"}, 0),
-        fruits = getFruits()
-    } 
-  
-    local jsonData = game:GetService("HttpService"):JSONEncode(data) 
-     
-    local success, res = pcall(function()
-        return request({ 
-            Url = base_url .. "services/update_stats.php", 
-            Method = "POST", 
-            Headers = { ["Content-Type"] = "application/json" }, 
-            Body = jsonData
+-- ฟังก์ชันหลักในการส่งข้อมูล
+local function sendStats()
+    local success, err = pcall(function()
+        -- รอข้อมูลสำคัญโหลด (ป้องกัน Error ตอนเริ่มเกม)
+        local data = LocalPlayer:WaitForChild("Data", 5)
+        local stats = data and data:WaitForChild("Stats", 5)
+        local leaderstats = LocalPlayer:WaitForChild("leaderstats", 5)
+
+        if not (data and stats and leaderstats) then return end
+
+        local payload = {
+            ["game_id"] = settings.game_id,
+            ["key"] = settings.key,
+            ["pc_name"] = settings.PC,
+            ["username"] = LocalPlayer.Name,
+            
+            -- ข้อมูลหลัก
+            ["cash"] = tostring(data:WaitForChild("Beli").Value), -- ส่ง Beli เข้าช่อง Cash
+            ["level"] = data:WaitForChild("Level").Value,
+            ["race"] = data:WaitForChild("Race").Value,
+            ["bounty"] = tostring(leaderstats:WaitForChild("Bounty/Honor").Value),
+            
+            -- ข้อมูล Mastery
+            ["m_melee"] = stats:WaitForChild("Melee"):WaitForChild("Level").Value,
+            ["m_defense"] = stats:WaitForChild("Defense"):WaitForChild("Level").Value,
+            ["m_sword"] = stats:WaitForChild("Sword"):WaitForChild("Level").Value,
+            ["m_gun"] = stats:WaitForChild("Gun"):WaitForChild("Level").Value,
+            ["m_fruit"] = stats:WaitForChild("Demon Fruit"):WaitForChild("Level").Value,
+            
+            -- ข้อมูลผลไม้
+            ["fruits"] = getFruits()
+        }
+
+        local jsonPayload = HttpService:JSONEncode(payload)
+        local response = request({
+            Url = updateUrl,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = jsonPayload
         })
+
+        if response.StatusCode ~= 200 then
+            warn("⚠️ ส่งข้อมูลไม่สำเร็จ: " .. tostring(response.StatusCode))
+        end
     end)
 
-    if success then
-        print("Loverr-EZX: Update Sent! (Status: " .. tostring(res.StatusCode) .. ")")
-    else
-        warn("Loverr-EZX: Request Failed! " .. tostring(res))
+    if not success then
+        warn("❌ Error ในการส่งข้อมูล: " .. tostring(err))
     end
-end 
- 
-print("Loverr-EZX: [Blox Fruit] Super Robust Script Loaded") 
-while true do 
-    pcall(updateStats) 
-    task.wait(interval)
+end
+
+-- เริ่มทำงานวนลูปตามวินาทีที่กำหนด
+print("✅ Blox Fruit Dashboard Script Started!")
+while true do
+    sendStats()
+    task.wait(settings.Interval or 5)
 end

@@ -1,7 +1,7 @@
 local settings = getgenv()["loverr-ezx_Settings"]
 local game_id = settings and settings.game_id or 1 
 local base_url = "http://localhost:8080/" 
-local interval = settings and settings.Interval or 1
+local interval = settings and settings.Interval or 20
 
 local player = game:GetService("Players").LocalPlayer
 

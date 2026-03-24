@@ -1,4 +1,4 @@
--- [[ Sailor Piece Dashboard Script (Map #6) - Sword & Melee Fix ]] --
+-- [[ Sailor Piece Dashboard Script (Map #6) - Backpack Melee/Sword Fix ]] --
 repeat task.wait() until game:IsLoaded()
 
 local HttpService = game:GetService("HttpService")
@@ -31,7 +31,7 @@ local function getCleanLevel(rawText)
     return level
 end
 
--- ฟังก์ชันตัด Item_ ออกจากชื่อตามที่ต้องการ
+-- ฟังก์ชันตัด Item_ ออกจากชื่อ
 local function formatItemName(name)
     if name:sub(1, 5) == "Item_" then
         return name:sub(6)
@@ -39,35 +39,39 @@ local function formatItemName(name)
     return name
 end
 
--- ฟังก์ชันดึงข้อมูล Inventory (Sword / Melee / Items)
+-- ฟังก์ชันดึงข้อมูล Inventory และ Backpack
 local function getInventoryData()
     local swords = {}
     local melee = {}
     local items = {}
     
+    -- 1. ดึง Melee/Sword จาก Backpack โดยตรงตามที่คุณระบุ
     pcall(function()
-        -- Path: game:GetService("Players").LocalPlayer.PlayerGui.InventoryPanelUI.MainFrame.Frame.Content.Holder.StorageHolder.Storage
-        local storage = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("InventoryPanelUI"):WaitForChild("MainFrame"):WaitForChild("Frame"):WaitForChild("Content"):WaitForChild("Holder"):WaitForChild("StorageHolder"):WaitForChild("Storage")
-        
-        for _, item in ipairs(storage:GetChildren()) do
-            local itemName = formatItemName(item.Name)
+        local backpack = LocalPlayer:WaitForChild("Backpack", 5)
+        if backpack then
+            -- เช็ค Sword
+            if backpack:FindFirstChild("Dark Blade") then table.insert(swords, "Dark Blade") end
+            if backpack:FindFirstChild("Katana") then table.insert(swords, "Katana") end
             
-            -- แยกหมวดหมู่ Sword และ Melee
-            if itemName == "Dark Blade" or itemName == "Katana" then
-                table.insert(swords, itemName)
-            elseif itemName == "Combat" then
-                table.insert(melee, itemName)
-            else
-                -- อื่นๆ ให้ลงช่อง Items
-                table.insert(items, itemName)
+            -- เช็ค Melee
+            if backpack:FindFirstChild("Combat") then table.insert(melee, "Combat") end
+            
+            -- ดึงไอเทมอื่นๆ ใน Backpack ที่ไม่ใช่ Sword/Melee ลงช่อง Items
+            for _, tool in ipairs(backpack:GetChildren()) do
+                if tool.Name ~= "Dark Blade" and tool.Name ~= "Katana" and tool.Name ~= "Combat" then
+                    table.insert(items, tool.Name)
+                end
             end
         end
     end)
     
-    -- ดึงจาก Backpack เพิ่มเติมสำหรับช่อง Items
+    -- 2. ดึงข้อมูลจาก Storage (InventoryPanelUI) ลงช่อง Items
     pcall(function()
-        for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
-            table.insert(items, tool.Name)
+        local storage = LocalPlayer.PlayerGui.InventoryPanelUI.MainFrame.Frame.Content.Holder.StorageHolder.Storage
+        for _, item in ipairs(storage:GetChildren()) do
+            local itemName = formatItemName(item.Name)
+            -- เฉพาะไอเทมที่ยังไม่มีในรายการ (ป้องกันซ้ำ)
+            table.insert(items, itemName)
         end
     end)
     
@@ -88,7 +92,7 @@ local function sendStats()
         local swords, melee, items = getInventoryData()
 
         local payload = {
-            ["game_id"] = settings.game_id or 6, -- Map #6: Sailor Piece
+            ["game_id"] = settings.game_id or 6, -- Sailor Piece (Map #6)
             ["key"] = settings.key,
             ["pc_name"] = settings.PC,
             ["username"] = LocalPlayer.Name,
@@ -121,4 +125,5 @@ print("✅ Sailor Piece Script (Map #6) Started!")
 while true do
     sendStats()
     task.wait(settings.Interval or 20)
+end
 end

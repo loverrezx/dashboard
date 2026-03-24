@@ -1,4 +1,4 @@
--- [[ Anime Vanguards Dashboard Script - Super Robust Version ]] --
+-- [[ Anime Vanguards Dashboard Script - Fix Mismatch Version ]] --
 repeat task.wait() until game:IsLoaded()
 
 local HttpService = game:GetService("HttpService")
@@ -14,20 +14,11 @@ local settings = getgenv()["loverr-ezx_Settings"]
 local baseUrl = settings.BaseUrl or "https://thanathipth.site/"
 local updateUrl = baseUrl .. "services/update_stats.php"
 
--- ฟังก์ชันดึงค่าจาก UI แบบปลอดภัย (หาด้วยชื่อหรือหา Amount)
-local function getCurrencyValue(parent, name)
-    local folder = parent:FindFirstChild(name)
-    if folder and folder:FindFirstChild("Amount") then
-        return folder.Amount.Text
-    end
-    -- ถ้าหาด้วยชื่อไม่เจอ ให้พยายามหาจากลูกตัวไหนก็ได้ที่มี Amount (Fallback)
-    for _, child in ipairs(parent:GetChildren()) do
-        if child:FindFirstChild("Amount") then
-            -- เช็คเงื่อนไขเพิ่มเติมถ้าจำเป็น
-            return child.Amount.Text
-        end
-    end
-    return "0"
+-- ฟังก์ชันดึงตัวเลขจากข้อความ (ใช้ดึง Level และลบลูกน้ำออก)
+local function cleanNumber(txt)
+    if not txt then return "0" end
+    local num = string.match(txt, "%d+%,?%d*%,?%d*") or "0"
+    return num:gsub(",", "") -- ลบลูกน้ำออกเพื่อให้ระบบคำนวณได้
 end
 
 local function getUnits()
@@ -50,17 +41,28 @@ local function sendStats()
         local main = hud:WaitForChild("Main", 10)
         local currencies = main:WaitForChild("Currencies", 10)
         
-        -- ดึงเลเวลและตัดเอาเฉพาะตัวเลขหน้าวงเล็บ
-        local levelLabel = main:WaitForChild("Level", 5):WaitForChild("Level", 5)
-        local rawLevel = levelLabel.Text
-        local cleanLevel = string.match(rawLevel, "^%d+") or rawLevel
+        -- 1. ดึง Level (ดึงเฉพาะตัวเลขจากข้อความใดๆ เช่น "Level 1 (0/350)" -> "1")
+        local rawLevel = main:WaitForChild("Level", 5):WaitForChild("Level", 5).Text
+        local cleanLevel = string.match(rawLevel, "%d+") or "0"
 
-        -- ดึงข้อมูลเงินแบบระบุตำแหน่งตามที่แจ้งมา (แต่เพิ่มการเช็ค nil)
+        -- 2. ดึงข้อมูลเงิน (พยายามหาตามโครงสร้างที่แน่นอน)
+        local gems = "0"
+        local gold = "0"
+        local leaves = "0"
+        local rerolls = "0"
+
+        -- ดึง Gems, Gold, Leaves จากลำดับ (ปรับตามที่เห็นใน Dashboard ว่า Gems ไปอยู่ช่อง 6)
         local children = currencies:GetChildren()
-        local gems = (children[5] and children[5]:FindFirstChild("Amount")) and children[5].Amount.Text or "0"
-        local gold = (children[7] and children[7]:FindFirstChild("Amount")) and children[7].Amount.Text or "0"
-        local leaves = (children[6] and children[6]:FindFirstChild("Amount")) and children[6].Amount.Text or "0"
-        local rerolls = (currencies:FindFirstChild("CurrencyFrame") and currencies.CurrencyFrame:FindFirstChild("Amount")) and currencies.CurrencyFrame.Amount.Text or "0"
+        -- ลองไล่ลำดับใหม่ตามที่ข้อมูลโผล่ผิด
+        gems = (children[6] and children[6]:FindFirstChild("Amount")) and children[6].Amount.Text or "0"
+        gold = (children[5] and children[5]:FindFirstChild("Amount")) and children[5].Amount.Text or "0"
+        leaves = (children[7] and children[7]:FindFirstChild("Amount")) and children[7].Amount.Text or "0"
+        
+        -- Rerolls ดึงจากชื่อ Path โดยตรง
+        local rrObj = currencies:FindFirstChild("CurrencyFrame")
+        if rrObj and rrObj:FindFirstChild("Amount") then
+            rerolls = rrObj.Amount.Text
+        end
 
         local payload = {
             ["game_id"] = settings.game_id,
@@ -68,10 +70,10 @@ local function sendStats()
             ["pc_name"] = settings.PC,
             ["username"] = LocalPlayer.Name,
             ["level"] = cleanLevel,
-            ["gems"] = gems,
-            ["gold"] = gold,
-            ["leaves"] = leaves,
-            ["rerolls"] = rerolls,
+            ["gems"] = cleanNumber(gems),
+            ["gold"] = cleanNumber(gold),
+            ["leaves"] = cleanNumber(leaves),
+            ["rerolls"] = cleanNumber(rerolls),
             ["units"] = getUnits()
         }
 
@@ -85,7 +87,7 @@ local function sendStats()
     if not success then warn("⚠️ Error: " .. tostring(err)) end
 end
 
-print("✅ Anime Vanguards Script Started!")
+print("✅ Anime Vanguards Script (Fix Mismatch) Started!")
 while true do
     sendStats()
     task.wait(settings.Interval or 20)

@@ -1,4 +1,4 @@
--- [[ Sailor Piece Dashboard Script (Map #6) - Quantity Fix ]] --
+-- [[ Sailor Piece Dashboard Script (Map #6) - Full Quantity Fix ]] --
 repeat task.wait() until game:IsLoaded()
 
 local HttpService = game:GetService("HttpService")
@@ -14,15 +14,11 @@ local settings = getgenv()["loverr-ezx_Settings"]
 local baseUrl = settings.BaseUrl or "https://thanathipth.site/"
 local updateUrl = baseUrl .. "services/update_stats.php"
 
--- ฟังก์ชันดึงเฉพาะตัวเลข และเช็คค่าว่าง
+-- ฟังก์ชันดึงเฉพาะตัวเลข และเช็คค่าว่าง (ถ้าว่างให้เป็น 1)
 local function cleanNumber(txt)
     if not txt or txt == "" then return "1" end
-    -- ดึงเฉพาะตัวเลขออกจากข้อความ (เช่น "x50" -> "50", "" -> "1")
     local num = tostring(txt):gsub("x", ""):match("%d+")
-    if not num or num == "" then
-        return "1"
-    end
-    return num
+    return (not num or num == "") and "1" or num
 end
 
 local function getCleanLevel(rawText)
@@ -48,7 +44,7 @@ local function getInventoryData()
             -- ดึงจำนวนจาก UI
             local qty = "1"
             local qtyObj = item:FindFirstChild("Slot") and item.Slot:FindFirstChild("Holder") and item.Slot.Holder:FindFirstChild("Quantity")
-            if qtyObj and qtyObj:IsA("TextLabel") then
+            if qtyObj and qtyObj:IsA("TextLabel") and qtyObj.Text ~= "" then
                 qty = cleanNumber(qtyObj.Text)
             end
             
@@ -71,7 +67,7 @@ local function getInventoryData()
         end
     end)
     
-    -- ดึงจาก Backpack (เช็คชื่อตรงๆ)
+    -- ดึงจาก Backpack
     pcall(function()
         local bp = LocalPlayer:FindFirstChild("Backpack")
         if bp then
@@ -95,11 +91,11 @@ local function sendStats()
             ["key"] = settings.key,
             ["pc_name"] = settings.PC,
             ["username"] = LocalPlayer.Name,
-            ["cash"] = cleanNumber(data:WaitForChild("Money", 5).Value),
-            ["gems"] = cleanNumber(data:WaitForChild("Gems", 5).Value),
+            ["cash"] = tostring(data:WaitForChild("Money", 5).Value),
+            ["gems"] = tostring(data:WaitForChild("Gems", 5).Value),
             ["level"] = getCleanLevel(data:WaitForChild("Level", 5).Value),
-            ["stat_points"] = cleanNumber(data:WaitForChild("StatPoints", 5).Value),
-            ["bounty"] = cleanNumber(leaderstats:WaitForChild("Bounty", 5).Value),
+            ["stat_points"] = tostring(data:WaitForChild("StatPoints", 5).Value),
+            ["bounty"] = tostring(leaderstats:WaitForChild("Bounty", 5).Value),
             ["swords"] = swords,
             ["melee"] = melee,
             ["items"] = items

@@ -1,4 +1,4 @@
--- [[ Sailor Piece Dashboard Script (Map #6) - Full Fix ]] --
+-- [[ Sailor Piece Dashboard Script (Map #6) - Final Fixed ]] --
 repeat task.wait() until game:IsLoaded()
 
 local HttpService = game:GetService("HttpService")
@@ -14,10 +14,16 @@ local settings = getgenv()["loverr-ezx_Settings"]
 local baseUrl = settings.BaseUrl or "https://thanathipth.site/"
 local updateUrl = baseUrl .. "services/update_stats.php"
 
-local function cleanNumber(txt)
+-- ฟังก์ชันดึงเฉพาะตัวเลขที่อยู่หลัง x
+local function cleanQuantity(txt)
     if not txt or txt == "" then return "1" end
-    local num = tostring(txt):gsub("x", ""):match("%d+")
-    return (not num or num == "") and "1" or num
+    -- ค้นหาตัวเลขที่อยู่หลัง x (เช่น x50 -> 50)
+    local num = tostring(txt):match("x(%d+)")
+    if not num then
+        -- ถ้าไม่มี x ให้ลองดึงตัวเลขทั้งหมด
+        num = tostring(txt):match("%d+")
+    end
+    return num or "1"
 end
 
 local function getCleanLevel(rawText)
@@ -30,44 +36,41 @@ local function formatItemName(name)
     return name:sub(1, 5) == "Item_" and name:sub(6) or name
 end
 
+-- ฟังก์ชันดึงข้อมูล Inventory (เน้นเฉพาะไอเทมที่ต้องการ)
 local function getInventoryData()
     local swords, melee, items = {}, {}, {}
+    local targets = {
+        ["Conqueror Fragment"] = true, ["Clan Reroll"] = true, ["Dark Grail"] = true, 
+        ["Dungeon Key"] = true, ["Haki Color Reroll"] = true, ["Passive Shard"] = true, 
+        ["Tempest Relic"] = true, ["Trait Reroll"] = true
+    }
     
-    -- ดึงจาก Storage
     pcall(function()
-        local storage = LocalPlayer.PlayerGui.InventoryPanelUI.MainFrame.Frame.Content.Holder.StorageHolder.Storage
+        local storage = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("InventoryPanelUI"):WaitForChild("MainFrame"):WaitForChild("Frame"):WaitForChild("Content"):WaitForChild("Holder"):WaitForChild("StorageHolder"):WaitForChild("Storage")
+        
         for _, item in ipairs(storage:GetChildren()) do
             local itemName = formatItemName(item.Name)
-            local qty = "1"
-            local qtyObj = item:FindFirstChild("Slot") and item.Slot:FindFirstChild("Holder") and item.Slot.Holder:FindFirstChild("Quantity")
-            if qtyObj and qtyObj:IsA("TextLabel") and qtyObj.Text ~= "" then
-                qty = cleanNumber(qtyObj.Text)
-            end
             
-            if itemName == "Dark Blade" or itemName == "Katana" then
-                table.insert(swords, itemName)
-            elseif itemName == "Combat" then
-                table.insert(melee, itemName)
-            else
+            -- แยกหมวดหมู่ Sword/Melee จาก Backpack (ตามคำสั่งก่อนหน้า)
+            -- ส่วนไอเทมเป้าหมายให้ดึงจำนวน
+            if targets[itemName] then
+                local qty = "1"
+                local qtyObj = item:FindFirstChild("Slot") and item.Slot:FindFirstChild("Holder") and item.Slot.Holder:FindFirstChild("Quantity")
+                if qtyObj and qtyObj:IsA("TextLabel") then
+                    qty = cleanQuantity(qtyObj.Text)
+                end
                 table.insert(items, itemName .. "|" .. qty)
             end
         end
     end)
     
-    -- ดึงจาก Backpack
+    -- ดึง Melee/Sword จาก Backpack ตามที่ระบุ
     pcall(function()
         local bp = LocalPlayer:FindFirstChild("Backpack")
         if bp then
-            for _, tool in ipairs(bp:GetChildren()) do
-                local itemName = tool.Name
-                if itemName == "Dark Blade" or itemName == "Katana" then
-                    if not table.find(swords, itemName) then table.insert(swords, itemName) end
-                elseif itemName == "Combat" then
-                    if not table.find(melee, itemName) then table.insert(melee, itemName) end
-                else
-                    table.insert(items, itemName .. "|1")
-                end
-            end
+            if bp:FindFirstChild("Dark Blade") then table.insert(swords, "Dark Blade") end
+            if bp:FindFirstChild("Katana") then table.insert(swords, "Katana") end
+            if bp:FindFirstChild("Combat") then table.insert(melee, "Combat") end
         end
     end)
     
@@ -104,7 +107,7 @@ local function sendStats()
     end)
 end
 
-print("✅ Sailor Piece Script (Map #6) Started!")
+print("✅ Sailor Piece Script (Final Fixed) Started!")
 while true do
     sendStats()
     task.wait(settings.Interval or 20)

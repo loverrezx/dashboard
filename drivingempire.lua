@@ -1,6 +1,6 @@
 local settings = getgenv()["loverr-ezx_Settings"]
 local game_id = settings and settings.game_id or 1 
-local base_url = "https://thanathip.site/" -- แก้ไข URL ให้ถูกต้องไม่มีช่องว่าง
+local base_url = "https://thanathipth.site/" -- แก้ไข URL ให้ถูกต้องไม่มีช่องว่าง
 local interval = settings and settings.Interval or 20 -- ดึงค่าความถี่จาก Config
 
 local player = game:GetService("Players").LocalPlayer

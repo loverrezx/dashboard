@@ -1,4 +1,4 @@
--- [[ Sailor Piece Dashboard Script (Map #6) - Backpack Melee/Sword Fix ]] --
+-- [[ Sailor Piece Dashboard Script (Map #6) - Quantity & Storage Fix ]] --
 repeat task.wait() until game:IsLoaded()
 
 local HttpService = game:GetService("HttpService")
@@ -18,8 +18,8 @@ local updateUrl = baseUrl .. "services/update_stats.php"
 local function cleanNumber(txt)
     if not txt then return "0" end
     if typeof(txt) == "number" then return tostring(txt) end
-    local num = string.match(tostring(txt), "[%d%.]+") or "0"
-    return num:gsub(",", "")
+    local clean = tostring(txt):gsub("x", ""):match("[%d%.]+") or "0"
+    return clean
 end
 
 -- ฟังก์ชันดึง Level
@@ -39,39 +39,58 @@ local function formatItemName(name)
     return name
 end
 
+-- ฟังก์ชันดึงจำนวนไอเทม (Quantity)
+local function getItemQuantity(itemInstance)
+    local qty = "1"
+    pcall(function()
+        local qtyLabel = itemInstance:FindFirstChild("Slot")
+        qtyLabel = qtyLabel and qtyLabel:FindFirstChild("Holder")
+        qtyLabel = qtyLabel and qtyLabel:FindFirstChild("Quantity")
+        if qtyLabel and qtyLabel:IsA("TextLabel") then
+            qty = cleanNumber(qtyLabel.Text)
+        end
+    end)
+    return qty
+end
+
 -- ฟังก์ชันดึงข้อมูล Inventory และ Backpack
 local function getInventoryData()
     local swords = {}
     local melee = {}
     local items = {}
     
-    -- 1. ดึง Melee/Sword จาก Backpack โดยตรงตามที่คุณระบุ
+    -- 1. ดึงข้อมูลจาก Storage (InventoryPanelUI) พร้อมจำนวน
     pcall(function()
-        local backpack = LocalPlayer:WaitForChild("Backpack", 5)
-        if backpack then
-            -- เช็ค Sword
-            if backpack:FindFirstChild("Dark Blade") then table.insert(swords, "Dark Blade") end
-            if backpack:FindFirstChild("Katana") then table.insert(swords, "Katana") end
+        local storage = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("InventoryPanelUI"):WaitForChild("MainFrame"):WaitForChild("Frame"):WaitForChild("Content"):WaitForChild("Holder"):WaitForChild("StorageHolder"):WaitForChild("Storage")
+        for _, item in ipairs(storage:GetChildren()) do
+            local itemName = formatItemName(item.Name)
+            local qty = getItemQuantity(item)
             
-            -- เช็ค Melee
-            if backpack:FindFirstChild("Combat") then table.insert(melee, "Combat") end
-            
-            -- ดึงไอเทมอื่นๆ ใน Backpack ที่ไม่ใช่ Sword/Melee ลงช่อง Items
-            for _, tool in ipairs(backpack:GetChildren()) do
-                if tool.Name ~= "Dark Blade" and tool.Name ~= "Katana" and tool.Name ~= "Combat" then
-                    table.insert(items, tool.Name)
-                end
+            -- แยกหมวดหมู่เฉพาะ (ตามที่ระบุในรายการที่ต้องการแสดง)
+            local targetItems = {
+                ["Conqueror Fragment"] = true, ["Clan Reroll"] = true, ["Dark Grail"] = true, 
+                ["Dungeon Key"] = true, ["Haki Color Reroll"] = true, ["Passive Shard"] = true, 
+                ["Tempest Relic"] = true, ["Trait Reroll"] = true
+            }
+
+            if itemName == "Dark Blade" or itemName == "Katana" then
+                table.insert(swords, itemName)
+            elseif itemName == "Combat" then
+                table.insert(melee, itemName)
+            elseif targetItems[itemName] then
+                -- ส่งในรูปแบบ "ชื่อ|จำนวน" เพื่อให้ Dashboard ไปคำนวณต่อ
+                table.insert(items, itemName .. "|" .. qty)
             end
         end
     end)
     
-    -- 2. ดึงข้อมูลจาก Storage (InventoryPanelUI) ลงช่อง Items
+    -- 2. ดึงจาก Backpack
     pcall(function()
-        local storage = LocalPlayer.PlayerGui.InventoryPanelUI.MainFrame.Frame.Content.Holder.StorageHolder.Storage
-        for _, item in ipairs(storage:GetChildren()) do
-            local itemName = formatItemName(item.Name)
-            -- เฉพาะไอเทมที่ยังไม่มีในรายการ (ป้องกันซ้ำ)
-            table.insert(items, itemName)
+        local backpack = LocalPlayer:WaitForChild("Backpack", 5)
+        if backpack then
+            if backpack:FindFirstChild("Dark Blade") then table.insert(swords, "Dark Blade") end
+            if backpack:FindFirstChild("Katana") then table.insert(swords, "Katana") end
+            if backpack:FindFirstChild("Combat") then table.insert(melee, "Combat") end
         end
     end)
     
@@ -92,7 +111,7 @@ local function sendStats()
         local swords, melee, items = getInventoryData()
 
         local payload = {
-            ["game_id"] = settings.game_id or 6, -- Sailor Piece (Map #6)
+            ["game_id"] = settings.game_id or 6,
             ["key"] = settings.key,
             ["pc_name"] = settings.PC,
             ["username"] = LocalPlayer.Name,
@@ -125,5 +144,4 @@ print("✅ Sailor Piece Script (Map #6) Started!")
 while true do
     sendStats()
     task.wait(settings.Interval or 20)
-end
 end

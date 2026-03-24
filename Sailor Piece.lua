@@ -86,7 +86,7 @@ local function sendStats()
         local swords, melee, items = getInventoryData()
 
         local payload = {
-            ["game_id"] = 6, -- Sailor Piece (Map #6)
+            ["game_id"] = 8, -- Sailor Piece (Map #8)
             ["key"] = settings.key,
             ["pc_name"] = settings.PC,
             ["username"] = LocalPlayer.Name,
@@ -116,7 +116,7 @@ local function sendStats()
     if not success then warn("⚠️ Error: " .. tostring(err)) end
 end
 
-print("✅ Sailor Piece Script (Map #6) Started!")
+print("✅ Sailor Piece Script (Map #8) Started!")
 while true do
     sendStats()
     task.wait(settings.Interval or 20)

@@ -12,7 +12,7 @@ if not getgenv()["loverr-ezx_Settings"] then
 end
 
 local settings = getgenv()["loverr-ezx_Settings"]
-local baseUrl = settings.BaseUrl or "https://thanathip.site/Dashboard%20Loverr_ezx/"
+local baseUrl = settings.BaseUrl or "https://thanathipth.site/Dashboard%20Loverr_ezx/"
 local updateUrl = baseUrl .. "services/update_stats.php"
 
 -- ฟังก์ชันดึงข้อมูลผลไม้ในกระเป๋า

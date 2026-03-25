@@ -1,9 +1,16 @@
+repeat task.wait() until game:IsLoaded()
+
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
-local Settings = getgenv()["loverr-ezx_Settings"] or {}
-local BASE_URL = tostring(Settings.BaseUrl or "")
+local Settings = getgenv()["loverr-ezx_Settings"]
+if not Settings then
+    warn("[loverr-ezx] missing config: getgenv()[\"loverr-ezx_Settings\"]")
+    return
+end
+
+local BASE_URL = tostring(Settings.BaseUrl or "https://thanathipth.site/")
 if BASE_URL ~= "" and not BASE_URL:match("/$") then
     BASE_URL = BASE_URL .. "/"
 end
@@ -14,6 +21,11 @@ local requestFn = (syn and syn.request) or (http and http.request) or http_reque
 if not requestFn then
     warn("[loverr-ezx] request function not found")
     return
+end
+
+local function waitChild(parent, name, timeout)
+    if not parent then return nil end
+    return parent:WaitForChild(name, timeout or 5)
 end
 
 local function safeFind(pathArray)
@@ -47,19 +59,30 @@ local function getDarkLeg()
     if darkLeg then
         return "DarkLeg"
     end
+    local character = LocalPlayer.Character
+    if character then
+        local held = character:FindFirstChild("DarkLeg")
+        if held then
+            return "DarkLeg"
+        end
+    end
     return "None"
 end
 
 local function collectData()
-    local gemObj = safeFind({"PlayerStats", "Gem"})
-    local beliObj = safeFind({"PlayerStats", "beli"})
-    local lvlObj = safeFind({"PlayerStats", "lvl"})
-    local bountyObj = safeFind({"leaderstats", "Bounty"})
-    local fishingObj = safeFind({"Leveling", "Fishing"})
+    local playerStats = waitChild(LocalPlayer, "PlayerStats", 10)
+    local leveling = waitChild(LocalPlayer, "Leveling", 10)
+    local leaderstats = waitChild(LocalPlayer, "leaderstats", 10)
 
-    local meleeStatObj = safeFind({"PlayerStats", "Melee"})
-    local swordStatObj = safeFind({"PlayerStats", "sword"})
-    local defenseStatObj = safeFind({"PlayerStats", "Defense"})
+    local gemObj = playerStats and (playerStats:FindFirstChild("Gem") or playerStats:FindFirstChild("Gems"))
+    local beliObj = playerStats and (playerStats:FindFirstChild("beli") or playerStats:FindFirstChild("Beli"))
+    local lvlObj = playerStats and (playerStats:FindFirstChild("lvl") or playerStats:FindFirstChild("Level"))
+    local bountyObj = leaderstats and leaderstats:FindFirstChild("Bounty")
+    local fishingObj = leveling and leveling:FindFirstChild("Fishing")
+
+    local meleeStatObj = playerStats and playerStats:FindFirstChild("Melee")
+    local swordStatObj = playerStats and (playerStats:FindFirstChild("sword") or playerStats:FindFirstChild("Sword"))
+    local defenseStatObj = playerStats and (playerStats:FindFirstChild("Defense") or playerStats:FindFirstChild("defense"))
 
     local payload = {
         key = tostring(Settings.key or ""),
@@ -106,9 +129,18 @@ local function sendOnce()
         warn("[loverr-ezx] empty response")
         return
     end
+
+    local status = res.StatusCode or res.Status or 0
+    if tonumber(status) ~= 200 then
+        warn("[loverr-ezx] http status:", tostring(status))
+        if res.Body then
+            warn("[loverr-ezx] body:", tostring(res.Body))
+        end
+    end
 end
 
 local interval = tonumber(Settings.Interval) or 20
+warn("[loverr-ezx] King Legacy started | endpoint:", ENDPOINT)
 while task.wait(interval) do
     sendOnce()
 end

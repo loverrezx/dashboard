@@ -87,6 +87,8 @@ local function collectData()
     local payload = {
         key = tostring(Settings.key or ""),
         game_id = tonumber(Settings.game_id) or 0,
+        game_slug = "kinglegacy",
+        game_name = "King Legacy",
         pc_name = tostring(Settings.PC or "Unknown"),
         username = tostring(LocalPlayer.Name),
 

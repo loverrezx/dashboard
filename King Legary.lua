@@ -131,10 +131,21 @@ local function sendOnce()
     end
 
     local status = res.StatusCode or res.Status or 0
+    local bodyText = res.Body
     if tonumber(status) ~= 200 then
         warn("[loverr-ezx] http status:", tostring(status))
-        if res.Body then
-            warn("[loverr-ezx] body:", tostring(res.Body))
+        if bodyText then
+            warn("[loverr-ezx] body:", tostring(bodyText))
+        end
+        return
+    end
+
+    if bodyText then
+        local okJson, decoded = pcall(function()
+            return HttpService:JSONDecode(bodyText)
+        end)
+        if okJson and type(decoded) == "table" and decoded.status == "error" then
+            warn("[loverr-ezx] server error:", tostring(decoded.message))
         end
     end
 end

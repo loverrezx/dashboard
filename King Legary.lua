@@ -1,159 +1,96 @@
 repeat task.wait() until game:IsLoaded()
 
-local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-local Settings = getgenv()["loverr-ezx_Settings"]
-if not Settings then
-    warn("[loverr-ezx] missing config: getgenv()[\"loverr-ezx_Settings\"]")
+if not getgenv()["loverr-ezx_Settings"] then
+    warn("ไม่พบการตั้งค่า Config! กรุณาคัดลอก Config จากหน้าเว็บมาวางก่อนสคริปต์นี้")
     return
 end
 
-local BASE_URL = tostring(Settings.BaseUrl or "https://thanathipth.site/")
-if BASE_URL ~= "" and not BASE_URL:match("/$") then
-    BASE_URL = BASE_URL .. "/"
-end
+local settings = getgenv()["loverr-ezx_Settings"]
+local baseUrl = settings.BaseUrl or "https://thanathipth.site/"
+local updateUrl = tostring(baseUrl):gsub("/?$", "/") .. "services/update_stats.php"
 
-local ENDPOINT = BASE_URL .. "services/update_stats.php"
-
-local requestFn = (syn and syn.request) or (http and http.request) or http_request or request
-if not requestFn then
-    warn("[loverr-ezx] request function not found")
+local request = (syn and syn.request) or (http and http.request) or http_request or request
+if not request then
+    warn("request function not found")
     return
 end
 
-local function waitChild(parent, name, timeout)
-    if not parent then return nil end
-    return parent:WaitForChild(name, timeout or 5)
+local function getValue(obj)
+    if not obj then return 0 end
+    local ok, v = pcall(function() return obj.Value end)
+    if ok then return v end
+    return 0
 end
 
-local function safeFind(pathArray)
-    local obj = LocalPlayer
-    for _, childName in ipairs(pathArray) do
-        if not obj then return nil end
-        obj = obj:FindFirstChild(childName)
-    end
-    return obj
-end
-
-local function valueOf(v)
-    if not v then return 0 end
-    local ok, val = pcall(function()
-        if v.Value ~= nil then return v.Value end
-        return tostring(v)
-    end)
-    if not ok then return 0 end
-    return val
-end
-
-local function toNumberClean(x)
-    local s = tostring(x or "0"):gsub("[^%d%.]", "")
-    return s == "" and "0" or s
-end
-
-local function getDarkLeg()
+local function findDarkLeg()
     local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if not backpack then return "None" end
-    local darkLeg = backpack:FindFirstChild("DarkLeg")
-    if darkLeg then
+    if backpack and backpack:FindFirstChild("DarkLeg") then
         return "DarkLeg"
     end
     local character = LocalPlayer.Character
-    if character then
-        local held = character:FindFirstChild("DarkLeg")
-        if held then
-            return "DarkLeg"
-        end
+    if character and character:FindFirstChild("DarkLeg") then
+        return "DarkLeg"
     end
     return "None"
 end
 
-local function collectData()
-    local playerStats = waitChild(LocalPlayer, "PlayerStats", 10)
-    local leveling = waitChild(LocalPlayer, "Leveling", 10)
-    local leaderstats = waitChild(LocalPlayer, "leaderstats", 10)
+local function sendStats()
+    local ok, err = pcall(function()
+        local playerStats = LocalPlayer:WaitForChild("PlayerStats", 10)
+        local leveling = LocalPlayer:WaitForChild("Leveling", 10)
+        local leaderstats = LocalPlayer:WaitForChild("leaderstats", 10)
+        if not (playerStats and leveling and leaderstats) then return end
 
-    local gemObj = playerStats and (playerStats:FindFirstChild("Gem") or playerStats:FindFirstChild("Gems"))
-    local beliObj = playerStats and (playerStats:FindFirstChild("beli") or playerStats:FindFirstChild("Beli"))
-    local lvlObj = playerStats and (playerStats:FindFirstChild("lvl") or playerStats:FindFirstChild("Level"))
-    local bountyObj = leaderstats and leaderstats:FindFirstChild("Bounty")
-    local fishingObj = leveling and leveling:FindFirstChild("Fishing")
+        local payload = {
+            ["game_id"] = tonumber(settings.game_id) or 0,
+            ["game_slug"] = "kinglegacy",
+            ["game_name"] = "King Legacy",
+            ["key"] = tostring(settings.key or ""),
+            ["pc_name"] = tostring(settings.PC or "Unknown"),
+            ["username"] = tostring(LocalPlayer.Name),
 
-    local meleeStatObj = playerStats and playerStats:FindFirstChild("Melee")
-    local swordStatObj = playerStats and (playerStats:FindFirstChild("sword") or playerStats:FindFirstChild("Sword"))
-    local defenseStatObj = playerStats and (playerStats:FindFirstChild("Defense") or playerStats:FindFirstChild("defense"))
+            ["gems"] = tostring(getValue(playerStats:FindFirstChild("Gem"))),
+            ["cash"] = tostring(getValue(playerStats:FindFirstChild("beli"))),
+            ["level"] = tostring(getValue(playerStats:FindFirstChild("lvl"))),
+            ["bounty"] = tostring(getValue(leaderstats:FindFirstChild("Bounty"))),
+            ["fishing"] = tostring(getValue(leveling:FindFirstChild("Fishing"))),
 
-    local payload = {
-        key = tostring(Settings.key or ""),
-        game_id = tonumber(Settings.game_id) or 0,
-        game_slug = "kinglegacy",
-        game_name = "King Legacy",
-        pc_name = tostring(Settings.PC or "Unknown"),
-        username = tostring(LocalPlayer.Name),
+            ["m_melee"] = tostring(getValue(playerStats:FindFirstChild("Melee"))),
+            ["m_sword"] = tostring(getValue(playerStats:FindFirstChild("sword"))),
+            ["m_defense"] = tostring(getValue(playerStats:FindFirstChild("Defense"))),
 
-        cash = toNumberClean(valueOf(beliObj)),
-        gems = toNumberClean(valueOf(gemObj)),
-        level = toNumberClean(valueOf(lvlObj)),
-        bounty = toNumberClean(valueOf(bountyObj)),
-        fishing = toNumberClean(valueOf(fishingObj)),
+            ["melee"] = findDarkLeg()
+        }
 
-        m_melee = toNumberClean(valueOf(meleeStatObj)),
-        m_sword = toNumberClean(valueOf(swordStatObj)),
-        m_defense = toNumberClean(valueOf(defenseStatObj)),
-
-        melee = getDarkLeg()
-    }
-
-    return payload
-end
-
-local function sendOnce()
-    local body = HttpService:JSONEncode(collectData())
-
-    local ok, res = pcall(function()
-        return requestFn({
-            Url = ENDPOINT,
+        local response = request({
+            Url = updateUrl,
             Method = "POST",
             Headers = {
                 ["Content-Type"] = "application/json"
             },
-            Body = body
+            Body = HttpService:JSONEncode(payload)
         })
+
+        local status = response and (response.StatusCode or response.Status) or 0
+        if tonumber(status) ~= 200 then
+            warn("ส่งข้อมูลไม่สำเร็จ: " .. tostring(status))
+            if response and response.Body then
+                warn(tostring(response.Body))
+            end
+        end
     end)
 
     if not ok then
-        warn("[loverr-ezx] send failed:", res)
-        return
-    end
-
-    if not res then
-        warn("[loverr-ezx] empty response")
-        return
-    end
-
-    local status = res.StatusCode or res.Status or 0
-    local bodyText = res.Body
-    if tonumber(status) ~= 200 then
-        warn("[loverr-ezx] http status:", tostring(status))
-        if bodyText then
-            warn("[loverr-ezx] body:", tostring(bodyText))
-        end
-        return
-    end
-
-    if bodyText then
-        local okJson, decoded = pcall(function()
-            return HttpService:JSONDecode(bodyText)
-        end)
-        if okJson and type(decoded) == "table" and decoded.status == "error" then
-            warn("[loverr-ezx] server error:", tostring(decoded.message))
-        end
+        warn("Error ในการส่งข้อมูล: " .. tostring(err))
     end
 end
 
-local interval = tonumber(Settings.Interval) or 20
-warn("[loverr-ezx] King Legacy started | endpoint:", ENDPOINT)
-while task.wait(interval) do
-    sendOnce()
+print("King Legacy Dashboard Script Started!")
+while true do
+    sendStats()
+    task.wait(tonumber(settings.Interval) or 5)
 end

@@ -38,6 +38,17 @@ local function findDarkLeg()
     return "None"
 end
 
+local function getConfigValue(...)
+    for i = 1, select("#", ...) do
+        local k = select(i, ...)
+        local v = settings[k]
+        if v ~= nil and tostring(v) ~= "" then
+            return v
+        end
+    end
+    return nil
+end
+
 local function sendStats()
     local ok, err = pcall(function()
         local playerStats = LocalPlayer:WaitForChild("PlayerStats", 10)
@@ -45,12 +56,19 @@ local function sendStats()
         local leaderstats = LocalPlayer:WaitForChild("leaderstats", 10)
         if not (playerStats and leveling and leaderstats) then return end
 
+        local keyValue = getConfigValue("key", "Key", "KEY", "user_key", "UserKey")
+        if not keyValue then
+            warn("Config ไม่ถูกต้อง: ไม่พบ key ใน loverr-ezx_Settings (เช่น key = \"USERNAME\")")
+            return
+        end
+
+        local gameId = tonumber(getConfigValue("game_id", "gameId", "GameId", "GAME_ID") or 0) or 0
+        local pcName = tostring(getConfigValue("PC", "pc", "Pc") or "Unknown")
+
         local payload = {
-            ["game_id"] = tonumber(settings.game_id) or 0,
-            ["game_slug"] = "kinglegacy",
-            ["game_name"] = "King Legacy",
-            ["key"] = tostring(settings.key or ""),
-            ["pc_name"] = tostring(settings.PC or "Unknown"),
+            ["game_id"] = gameId,
+            ["key"] = tostring(keyValue),
+            ["pc_name"] = pcName,
             ["username"] = tostring(LocalPlayer.Name),
 
             ["gems"] = tostring(getValue(playerStats:FindFirstChild("Gem"))),
@@ -92,5 +110,5 @@ end
 print("King Legacy Dashboard Script Started!")
 while true do
     sendStats()
-    task.wait(tonumber(settings.Interval) or 5)
+    task.wait(tonumber(getConfigValue("Interval", "interval") or 5) or 5)
 end
